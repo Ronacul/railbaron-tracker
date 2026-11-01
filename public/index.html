@@ -105,6 +105,15 @@ select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
 .dice-warn { background: #A8402F; color: #F5EBD3; border-radius: 6px; padding: 7px 10px; margin: 0 0 8px; font: 600 13.5px 'Barlow Semi Condensed'; }
 .pickhint { font-size: 12.5px; color: #8A7A5A; margin: 0 0 6px; }
 #synctag { font-size: 12px; padding: 5px 9px; }
+.sums { display: flex; gap: 8px; margin-top: 4px; }
+.sums div { flex: 1; background: #FDF7E7; border: 1px solid #C7B588; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
+.sums b { font: 600 16px 'IBM Plex Mono', monospace; color: #1E4D33; }
+.sums span { font-size: 11px; color: #8A7A5A; text-transform: uppercase; letter-spacing: 1px; }
+.srow { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 13.5px; padding: 2px 0; }
+.sname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbar { background: #E6DAB8; border-radius: 4px; height: 12px; overflow: hidden; }
+.sbar i { display: block; height: 100%; background: #22392D; border-radius: 4px; }
+.scount { font: 500 12px 'IBM Plex Mono', monospace; color: #6B5F49; }
 #syncnote { display: none; max-width: 1500px; margin: -4px auto 12px; padding: 8px 12px; background: #C29A4C; color: #22392D; border-radius: 6px; font: 600 13.5px 'Barlow Semi Condensed'; }
 </style>
 </head>
@@ -115,6 +124,7 @@ select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
     <div class="mast-r">
       <span class="boardtag" id="boardtag"></span>
       <button class="menubtn" id="synctag" data-act="refresh" title="Tap to refresh" hidden></button>
+      <button class="menubtn" id="statsbtn" data-act="stats">Stats</button>
       <button class="menubtn" id="menubtn" data-act="menu">Game setup <span class="chev">&#9662;</span></button>
     </div>
   </header>
@@ -287,8 +297,36 @@ function renderPicker(box) {
     </div>`;
 }
 
+// Stats for this game: where trips have ended, overall or for one player. Counts arrived trips only.
+function renderStats(box) {
+  const who = S.stats.who, R = REG[S.map];
+  const ps = who === "all" ? S.players : S.players.filter(p => p.id === who);
+  const trips = ps.flatMap(p => p.log), n = trips.length;
+  const tally = (key) => { const m = {}; trips.forEach(t => { const k = key(t); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])); };
+  const bars = (rows, max) => rows.map(([k, c]) => `<div class="srow"><span class="sname">${esc(k)}</span><span class="sbar"><i style="width:${Math.round(100 * c / max)}%"></i></span><span class="scount">${c} · ${Math.round(100 * c / n)}%</span></div>`).join("");
+  const earned = trips.reduce((a, t) => a + t.pay, 0), best = trips.reduce((m, t) => t.pay > m.pay ? t : m, { pay: 0 });
+  const regs = tally(t => R.of[t.to] || "Other"), cities = tally(t => t.to);
+  const body = !n ? '<div class="dice-note">No finished trips yet. Stats fill in as players tap Arrive.</div>' : `
+    <div class="sums">
+      <div><b>${n}</b><span>trips</span></div>
+      <div><b>${fmt(Math.round(earned / n), S.map)}</b><span>avg payout</span></div>
+      <div><b>${fmt(best.pay, S.map)}</b><span>best${best.to ? " · " + esc(best.to) : ""}</span></div>
+    </div>
+    <div class="lbl" style="margin:10px 0 4px">Destination regions</div>${bars(regs, regs[0][1])}
+    <div class="lbl" style="margin:12px 0 4px">Most visited cities</div>${bars(cities.slice(0, 10), cities[0][1])}
+    ${cities.length > 10 ? `<div class="dice-note">Top 10 of ${cities.length} cities reached.</div>` : ""}`;
+  box.style.display = "flex";
+  box.innerHTML = `
+    <div class="pickbox" style="overflow-y:auto">
+      <div class="dice-head"><span class="dice-kicker">Game stats · ${S.map === "US" ? "US" : "UK"} board</span><button class="xbtn" data-act="statsclose">✕</button></div>
+      <div class="chips"><button class="chip${who === "all" ? " on" : ""}" data-act="statswho" data-w="all">Everyone</button>${S.players.map(p => `<button class="chip${who === p.id ? " on" : ""}" data-act="statswho" data-w="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+      ${body}
+    </div>`;
+}
+
 function renderDice() {
   const box = document.getElementById("overlay");
+  if (S.stats) { renderStats(box); return; }
   if (S.pick) { renderPicker(box); return; }
   if (!S.dice) { box.style.display = "none"; box.innerHTML = ""; return; }
   const p = P(S.dice.id);
@@ -384,6 +422,9 @@ document.addEventListener("click", (e) => {
     history.replaceState(null, "", location.pathname + location.search);
     setStatus("solo"); render();
   }
+  else if (act === "stats") { S.stats = { who: "all" }; S.menuOpen = false; render(); }
+  else if (act === "statsclose") { S.stats = null; render(); }
+  else if (act === "statswho") { S.stats.who = el.dataset.w === "all" ? "all" : +el.dataset.w; render(); }
   else if (act === "diceclose") { S.dice = null; render(); }
   else if (act === "diceregion") {
     const r = el.dataset.r, t = S.dice;
