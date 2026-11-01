@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail Baron Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128642;</text></svg>">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+* { box-sizing: border-box; }
+body { margin: 0; }
+.page { min-height: 100vh; background: #22392D; background-image: radial-gradient(#2A4536 1px, transparent 1px); background-size: 22px 22px;
+  font-family: 'Barlow Semi Condensed', 'Segoe UI', sans-serif; color: #2A241A; padding: 14px clamp(10px, 3vw, 28px) 24px; }
+.mast { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 3px double #C29A4C; padding-bottom: 10px; margin-bottom: 14px; }
+.mast h1 { font-family: 'Alfa Slab One', serif; font-size: clamp(22px, 4vw, 34px); margin: 0; color: #F5EBD3; letter-spacing: 1px; text-shadow: 2px 2px 0 #14231B; }
+.mast-r { display: flex; gap: 10px; align-items: center; }
+.boardtag { color: #E8D9B5; font: 600 13px 'Barlow Semi Condensed'; letter-spacing: .5px; }
+.menubtn { background: transparent; color: #E8D9B5; border: 1.5px solid #C29A4C; border-radius: 6px; padding: 6px 12px; font: 600 13px 'Barlow Semi Condensed'; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.menubtn:hover { background: #2E4A3A; }
+.chev { display: inline-block; transition: transform .15s; }
+.chev.up { transform: rotate(180deg); }
+#toolbar { display: none; gap: 10px; align-items: center; flex-wrap: wrap; max-width: 1500px; margin: -4px auto 14px; padding: 10px 12px; background: #1B2F25; border: 1px solid #C29A4C55; border-radius: 8px; }
+.maptoggle { display: flex; border: 1.5px solid #C29A4C; border-radius: 6px; overflow: hidden; }
+.maptoggle button { background: transparent; color: #E8D9B5; border: none; padding: 6px 12px; font: 600 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.maptoggle button.on { background: #C29A4C; color: #22392D; }
+.addbtn { background: #A8402F; color: #F5EBD3; border: none; border-radius: 6px; padding: 7px 12px; font: 600 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.addbtn:hover { background: #8F3325; }
+.resetbtn { background: transparent; color: #E8D9B5; border: 1.5px solid #C29A4C; border-radius: 6px; padding: 6px 12px; font: 600 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.resetbtn:hover { background: #C29A4C; color: #22392D; }
+.fontctl { display: flex; border: 1.5px solid #C29A4C; border-radius: 6px; overflow: hidden; }
+.fontctl button { background: transparent; color: #E8D9B5; border: none; padding: 6px 10px; font: 700 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.fontctl button:hover { background: #C29A4C; color: #22392D; }
+.fontctl button:first-child { border-right: 1.5px solid #C29A4C; }
+#grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; max-width: 1500px; margin: 0 auto; }
+.ticket { background: #F5EBD3; border-radius: 8px; padding: 10px 12px 8px; position: relative; box-shadow: 0 3px 10px rgba(0,0,0,.35); border: 1px solid #D9C89C;
+  background-image: linear-gradient(90deg, transparent 0 8px, rgba(194,154,76,.16) 8px 9px, transparent 9px); }
+.ticket.lead { outline: 2px solid #C29A4C; }
+.ticket.lead::after { content: 'LEADER'; position: absolute; top: -8px; right: 10px; background: #C29A4C; color: #22392D; font: 700 10px 'Barlow Semi Condensed'; letter-spacing: 1.5px; padding: 2px 7px; border-radius: 3px; }
+.punchrow { display: flex; align-items: center; gap: 6px; border-bottom: 1.5px dashed #C7B588; padding-bottom: 6px; margin-bottom: 6px; position: relative; }
+.pname { flex: 1; min-width: 0; background: transparent; border: none; font: 700 17px 'Barlow Semi Condensed'; color: #2A241A; text-transform: uppercase; letter-spacing: .5px; padding: 2px 0; }
+.pname:focus { outline: none; border-bottom: 1.5px solid #A8402F; }
+.rosterbtn { background: #FDF7E7; border: 1px solid #C7B588; border-radius: 5px; color: #2A241A; font-size: 12px; padding: 3px 8px; cursor: pointer; }
+.rosterbtn:hover { background: #22392D; color: #F5EBD3; }
+.rosterveil { position: fixed; inset: 0; z-index: 30; }
+.rostermenu { position: absolute; top: 100%; right: 24px; z-index: 31; background: #FDF7E7; border: 1.5px solid #C29A4C; border-radius: 7px; box-shadow: 0 6px 18px rgba(0,0,0,.3); overflow: hidden; min-width: 130px; }
+.rostermenu button { display: block; width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid #EADFC2; padding: 8px 12px; font: 600 14px 'Barlow Semi Condensed'; color: #2A241A; cursor: pointer; }
+.rostermenu button:last-child { border-bottom: none; }
+.rostermenu button:hover { background: #22392D; color: #F5EBD3; }
+.xbtn { background: none; border: none; cursor: pointer; font-size: 13px; color: #6B5F49; padding: 2px 5px; }
+.xbtn.dim:hover { color: #A8402F; }
+.lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.5px; color: #8A7A5A; font-weight: 600; }
+.homerow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.homerow select { flex: 1; min-width: 0; }
+.stats { margin-left: auto; text-align: right; line-height: 1.15; }
+select { font: 500 13.5px 'Barlow Semi Condensed', sans-serif; background: #FDF7E7; border: 1px solid #C7B588; border-radius: 5px; padding: 4px 6px; color: #2A241A; max-width: 100%; }
+select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
+.dicebtn { background: #22392D; color: #F5EBD3; border: none; border-radius: 5px; font-size: 14px; padding: 4px 8px; cursor: pointer; line-height: 1; }
+.dicebtn:hover { background: #315442; }
+.cash { font: 600 17px 'IBM Plex Mono', monospace; color: #1E4D33; letter-spacing: -0.5px; white-space: nowrap; }
+.trips { font-size: 11px; color: #6B5F49; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.undo { background: none; border: 1px solid #C7B588; border-radius: 4px; color: #A8402F; font: 600 10px 'Barlow Semi Condensed'; padding: 1px 5px; cursor: pointer; }
+.undo:hover { background: #F0E2C2; }
+.route { display: flex; align-items: center; gap: 6px; }
+.route select { flex: 1; min-width: 0; }
+.arrow { color: #A8402F; font-size: 16px; flex: none; }
+.arrivebtn { width: 100%; margin-top: 8px; background: #A8402F; border: none; color: #F5EBD3; border-radius: 6px; padding: 9px 8px; font: 700 14.5px 'Barlow Semi Condensed'; letter-spacing: .5px; cursor: pointer; text-transform: uppercase; }
+.arrivebtn:hover { background: #8F3325; }
+.pagefoot { text-align: center; color: #7FA08C; font-size: 11.5px; margin-top: 18px; letter-spacing: .3px; }
+#overlay { position: fixed; inset: 0; background: rgba(15,26,20,.72); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+.dicebox { background: #F5EBD3; border-radius: 10px; width: min(400px, 100%); padding: 14px 16px 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.dice-head { display: flex; justify-content: space-between; align-items: center; }
+.dice-kicker { font: 700 12px 'Barlow Semi Condensed'; text-transform: uppercase; letter-spacing: 1.5px; color: #8A7A5A; }
+.dice-step { font-size: 16px; margin: 8px 0 10px; }
+.parity-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.parity { flex: 1; border: 2px solid #22392D; background: #FDF7E7; border-radius: 6px; padding: 8px 0; font: 700 14px 'Barlow Semi Condensed'; letter-spacing: 2px; cursor: pointer; color: #22392D; }
+.parity.even { border-color: #A8402F; color: #A8402F; }
+.parity.on { background: #22392D; color: #F5EBD3; }
+.parity.even.on { background: #A8402F; color: #F5EBD3; }
+.autoroll { border: none; background: #C29A4C; color: #22392D; border-radius: 6px; padding: 8px 10px; font: 700 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.rollgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.rollbtn { font: 600 17px 'IBM Plex Mono', monospace; background: #FDF7E7; border: 1.5px solid #C7B588; border-radius: 6px; padding: 9px 0; cursor: pointer; color: #2A241A; }
+.rollbtn:hover { background: #22392D; color: #F5EBD3; border-color: #22392D; }
+.dice-note { font-size: 11.5px; color: #8A7A5A; margin-top: 9px; }
+.citybtn { flex: 1; min-width: 0; text-align: left; font: 500 13.5px 'Barlow Semi Condensed', sans-serif; background: #FDF7E7; border: 1px solid #C7B588; border-radius: 5px; padding: 5px 8px; color: #2A241A; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.citybtn:hover { background: #F0E2C2; }
+.citybtn.empty { color: #8A7A5A; }
+.pickbox { background: #F5EBD3; border-radius: 10px; width: min(440px, 100%); max-height: 92vh; display: flex; flex-direction: column; padding: 12px 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { border: 1.5px solid #22392D; background: #FDF7E7; color: #22392D; border-radius: 16px; padding: 6px 11px; font: 700 13px 'Barlow Semi Condensed'; cursor: pointer; }
+.chip.on { background: #22392D; color: #F5EBD3; }
+.pickbody { display: flex; gap: 8px; min-height: 0; flex: 1; }
+.rail { display: flex; flex-direction: column; gap: 5px; flex: none; }
+.rail button { border: 1.5px solid #C29A4C; background: #FDF7E7; color: #22392D; border-radius: 6px; padding: 9px 7px; min-width: 52px; font: 700 13px 'IBM Plex Mono', monospace; cursor: pointer; }
+.rail button.on { background: #C29A4C; }
+.cities { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; flex: 1; overflow-y: auto; align-content: start; min-height: 120px; max-height: 56vh; }
+.cities button { text-align: left; border: 1.5px solid #C7B588; background: #FDF7E7; color: #2A241A; border-radius: 6px; padding: 10px 8px; font: 600 14px 'Barlow Semi Condensed'; cursor: pointer; }
+.cities button:hover { background: #22392D; color: #F5EBD3; }
+.cities button.sel { border-color: #A8402F; }
+.cities button:disabled { opacity: .35; cursor: default; }
+.cities .hint { grid-column: 1 / -1; color: #8A7A5A; font-size: 13px; padding: 8px 2px; }
+.dice-cities { margin-top: 10px; }
+.chip:disabled { opacity: .35; cursor: default; }
+.chip.back { border-color: #C29A4C; background: transparent; }
+.dice-warn { background: #A8402F; color: #F5EBD3; border-radius: 6px; padding: 7px 10px; margin: 0 0 8px; font: 600 13.5px 'Barlow Semi Condensed'; }
+.pickhint { font-size: 12.5px; color: #8A7A5A; margin: 0 0 6px; }
+#synctag { font-size: 12px; padding: 5px 9px; }
+#syncnote { display: none; max-width: 1500px; margin: -4px auto 12px; padding: 8px 12px; background: #C29A4C; color: #22392D; border-radius: 6px; font: 600 13.5px 'Barlow Semi Condensed'; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="mast">
+    <div class="mast-l"><h1>Rail Baron</h1></div>
+    <div class="mast-r">
+      <span class="boardtag" id="boardtag"></span>
+      <button class="menubtn" id="synctag" data-act="refresh" title="Tap to refresh" hidden></button>
+      <button class="menubtn" id="menubtn" data-act="menu">Game setup <span class="chev">&#9662;</span></button>
+    </div>
+  </header>
+  <div id="syncnote"></div>
+  <div id="toolbar"></div>
+  <main id="grid"></main>
+  <footer class="pagefoot">Payoffs from your workbook &middot; destination tables per the odd/even charts &middot; share a live game to let everyone enter moves</footer>
+</div>
+<div id="overlay"></div>
+<script src="data.js"></script>
+<script>
+const CFG = { US: { mult: 500, start: 20000, sym: "$" }, UK: { mult: 1000, start: 10000, sym: "\u00A3" } };
+const ROSTER = ["Lucanor", "Dennis", "Ian", "Mark", "Martin", "Alistair"];
+const ROLLS = [2,3,4,5,6,7,8,9,10,11,12];
+
+const MAT = {};
+for (const k of ["US","UK"]) {
+  const d = DATA[k], arr = d.m.split(",").map(Number), idx = {};
+  d.cities.forEach((c,i)=>idx[c]=i);
+  MAT[k] = { arr, idx, n: d.cities.length };
+}
+function payoff(map, a, b) {
+  if (!a || !b || a === b) return 0;
+  const m = MAT[map];
+  return m.arr[m.idx[a]*m.n + m.idx[b]] * CFG[map].mult;
+}
+const fmt = (n, map) => CFG[map].sym + n.toLocaleString();
+const d6 = () => 1 + Math.floor(Math.random()*6);
+const esc = (t) => String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+
+let nextId = 1;
+const newPlayer = (map) => ({ id: nextId, name: "Player " + (nextId++), home: DATA[map].cities[0],
+  cur: DATA[map].cities[0], dest: "", cash: CFG[map].start, log: [] });
+
+const S = {
+  map: "UK",
+  players: [0,0,0,0].map(()=>newPlayer("UK")),
+  scale: 1, menuOpen: false, rosterFor: null,
+  dice: null, // {id, field, step:"region"|"city", region, parity}
+};
+const P = (id) => S.players.find(p=>p.id===id);
+
+// Region membership comes from the destination tables; cities in none fall under "Other".
+const REG = {};
+for (const k of ["US","UK"]) {
+  const d = DATA[k], of = {}, order = Object.keys(d.cityTables);
+  for (const r of order) for (const par of ["odd","even"]) for (const c of Object.values(d.cityTables[r][par])) of[c] = r;
+  for (const par of ["odd","even"]) for (const r of Object.values(d.regions[par]))
+    if (!d.cityTables[r] && !order.includes(r)) { order.push(r); if (d.cities.includes(r)) of[r] = r; }
+  if (d.cities.some(c => !of[c])) { d.cities.forEach(c => { if (!of[c]) of[c] = "Other"; }); order.push("Other"); }
+  REG[k] = { order, of };
+}
+const citiesIn = (map, region) => DATA[map].cities.filter(c => REG[map].of[c] === region);
+
+// A\u2013Z split into ~6 groups of similar size so the side rail fits a phone.
+function letterGroups(cities) {
+  const by = {};
+  cities.forEach(c => { const L = c[0].toUpperCase(); (by[L] = by[L] || []).push(c); });
+  const target = Math.ceil(cities.length / 6), groups = [];
+  let cur = null;
+  for (const L of Object.keys(by).sort()) {
+    if (!cur || cur.n >= target) { cur = { letters: [], cities: [], n: 0 }; groups.push(cur); }
+    cur.letters.push(L); cur.cities.push(...by[L]); cur.n += by[L].length;
+  }
+  if (groups.length > 1 && groups[groups.length-1].n <= 3) {
+    const last = groups.pop(), prev = groups[groups.length-1];
+    prev.letters.push(...last.letters); prev.cities.push(...last.cities); prev.n += last.n;
+  }
+  return groups.map(g => ({ label: g.letters.length > 1 ? g.letters[0] + "\u2013" + g.letters[g.letters.length-1] : g.letters[0], cities: g.cities }));
+}
+
+// A destination can never be in the region the player is already in.
+const curRegion = (p) => REG[S.map].of[p.cur];
+
+function cityBtn(p, f) {
+  const v = p[f];
+  return `<button class="citybtn${v?"":" empty"}" data-act="pick" data-id="${p.id}" data-f="${f}">${v ? esc(v) : "\u2014 pick \u2014"}</button>`;
+}
+
+function render() {
+  document.getElementById("boardtag").textContent = S.map === "US" ? "\u{1F1FA}\u{1F1F8} US board" : "\u{1F1EC}\u{1F1E7} UK board";
+  document.querySelector("#menubtn .chev").className = "chev" + (S.menuOpen ? " up" : "");
+  const tb = document.getElementById("toolbar");
+  tb.style.display = S.menuOpen ? "flex" : "none";
+  if (S.menuOpen) {
+    tb.innerHTML = `
+      <div class="maptoggle">
+        <button data-act="map" data-k="UK" class="${S.map==="UK"?"on":""}">\u{1F1EC}\u{1F1E7} UK</button>
+        <button data-act="map" data-k="US" class="${S.map==="US"?"on":""}">\u{1F1FA}\u{1F1F8} US</button>
+      </div>
+      ${S.players.length<6 ? '<button class="addbtn" data-act="add">+ Add player</button>' : ""}
+      ${SYNC.id
+        ? '<button class="addbtn" data-act="copylink">Copy game link</button><button class="resetbtn" data-act="refresh">Refresh</button><button class="resetbtn" data-act="leave">Leave shared game</button>'
+        : '<button class="addbtn" data-act="share">Share live game</button>'}
+      <button class="resetbtn" data-act="newgame">New game</button>
+      <div class="fontctl" title="Text size">
+        <button data-act="scaledown">A\u2212</button><button data-act="scaleup">A+</button>
+      </div>`;
+  }
+
+  const leader = Math.max(...S.players.map(p=>p.cash));
+  const grid = document.getElementById("grid");
+  grid.style.zoom = S.scale;
+  grid.innerHTML = S.players.map(p => {
+    const pay = payoff(S.map, p.cur, p.dest);
+    const isLead = p.cash === leader && S.players.length > 1;
+    const roster = S.rosterFor === p.id ? `
+      <div class="rosterveil" data-act="rosterclose"></div>
+      <div class="rostermenu">${ROSTER.map(n=>`<button data-act="rosterpick" data-id="${p.id}" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : "";
+    return `
+    <section class="ticket${isLead?" lead":""}">
+      <div class="punchrow">
+        <input class="pname" data-field="name" data-id="${p.id}" value="${esc(p.name)}">
+        <button class="rosterbtn" data-act="roster" data-id="${p.id}" title="Pick from roster">\u25BE</button>
+        <button class="xbtn dim" data-act="remove" data-id="${p.id}" title="Remove player">\u2715</button>
+        ${roster}
+      </div>
+      <div class="homerow">
+        <span class="lbl">Home</span>
+        ${cityBtn(p, "home")}
+        <button class="dicebtn" data-act="dice" data-id="${p.id}" data-f="home" title="Roll home city">\u{1F3B2}</button>
+        <div class="stats">
+          <div class="cash">${fmt(p.cash, S.map)}</div>
+          <div class="trips">${p.log.length} trip${p.log.length===1?"":"s"}
+            ${p.log.length?`<button class="undo" data-act="undo" data-id="${p.id}">undo</button>`:""}</div>
+        </div>
+      </div>
+      <div class="route">
+        <span class="lbl">At</span>
+        ${cityBtn(p, "cur")}
+        <span class="arrow">\u27F6</span>
+        ${cityBtn(p, "dest")}
+        <button class="dicebtn" data-act="dice" data-id="${p.id}" data-f="dest" title="Roll destination">\u{1F3B2}</button>
+      </div>
+      ${p.dest ? `<button class="arrivebtn" data-act="arrive" data-id="${p.id}">Arrive \u00B7 collect ${fmt(pay, S.map)}</button>` : ""}
+    </section>`;
+  }).join("");
+
+  renderDice();
+  paintSync();
+  syncCheck();
+  saveLocal();
+}
+
+function renderPicker(box) {
+  const pk = S.pick, p = P(pk.id), R = REG[S.map];
+  const groups = letterGroups(DATA[S.map].cities);
+  const skip = pk.field === "dest" ? p.cur : null, sel = p[pk.field];
+  const ban = pk.field === "dest" ? curRegion(p) : null;
+  let list = null;
+  if (pk.region) list = citiesIn(S.map, pk.region);
+  else if (pk.group != null) list = groups[pk.group].cities;
+  const label = { home: "Home city", cur: "Current city", dest: "Destination" }[pk.field];
+  box.style.display = "flex";
+  box.innerHTML = `
+    <div class="pickbox">
+      <div class="dice-head">
+        <span class="dice-kicker">${label} — ${esc(p.name)}</span>
+        <button class="xbtn" data-act="pickclose">✕</button>
+      </div>
+      ${ban ? `<div class="pickhint">${esc(p.name)} is in ${esc(ban)}, so that region can't be the destination.</div>` : ""}
+      <div class="chips">${R.order.map(r=>`<button class="chip${pk.region===r?" on":""}" data-act="pickregion" data-r="${esc(r)}"${r===ban?" disabled":""}>${esc(r)}</button>`).join("")}
+        ${pk.field==="dest" && p.dest ? '<button class="chip" data-act="pickclear">Clear</button>' : ""}</div>
+      <div class="pickbody">
+        <div class="rail">${groups.map((g,i)=>`<button class="${pk.group===i?"on":""}" data-act="pickgroup" data-g="${i}">${g.label}</button>`).join("")}</div>
+        <div class="cities">${list
+          ? list.map(c=>`<button data-act="pickcity" data-c="${esc(c)}"${(c===skip||R.of[c]===ban)?" disabled":""} class="${c===sel?"sel":""}">${esc(c)}</button>`).join("")
+          : '<div class="hint">Tap a region above if you know it, or a letter group on the left.</div>'}</div>
+      </div>
+    </div>`;
+}
+
+function renderDice() {
+  const box = document.getElementById("overlay");
+  if (S.pick) { renderPicker(box); return; }
+  if (!S.dice) { box.style.display = "none"; box.innerHTML = ""; return; }
+  const p = P(S.dice.id);
+  const R = REG[S.map];
+  const ban = S.dice.field === "dest" ? curRegion(p) : null;
+  const regionChips = S.dice.step === "region"
+    ? `${S.dice.note ? `<div class="dice-warn">${esc(S.dice.note)}</div>` : ""}
+       <div class="dice-note" style="margin:0 0 4px">Already know the region from your roll? Tap it${ban ? ` (not ${esc(ban)}, where ${esc(p.name)} is)` : ""}:</div>
+       <div class="chips" style="margin-top:2px">${R.order.map(r=>`<button class="chip" data-act="diceregion" data-r="${esc(r)}"${r===ban?" disabled":""}>${esc(r)}</button>`).join("")}</div>`
+    : `<div class="chips" style="margin:0 0 6px"><button class="chip back" data-act="dicechange">‹ Change region</button></div>
+       <div class="dice-note" style="margin:0 0 4px">Or tap the city directly:</div>
+       <div class="cities dice-cities" style="max-height:30vh">${citiesIn(S.map, S.dice.region).map(c=>`<button data-act="dicecity" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
+  const stepTxt = S.dice.step === "region"
+    ? 'Roll 1 of 2 \u00B7 <b>Region</b>'
+    : `Roll 2 of 2 \u00B7 <b>${esc(S.dice.region)}</b> \u2014 city`;
+  box.style.display = "flex";
+  box.innerHTML = `
+    <div class="dicebox">
+      <div class="dice-head">
+        <span class="dice-kicker">Destination table \u2014 ${esc(p.name)}</span>
+        <button class="xbtn" data-act="diceclose">\u2715</button>
+      </div>
+      <div class="dice-step">${stepTxt}</div>
+      ${S.dice.step === "region" ? regionChips : ""}
+      <div class="parity-row">
+        <button class="parity odd${S.dice.parity==="odd"?" on":""}" data-act="parity" data-p="odd">ODD</button>
+        <button class="parity even${S.dice.parity==="even"?" on":""}" data-act="parity" data-p="even">EVEN</button>
+        <button class="autoroll" data-act="autoroll">\u{1F3B2} Roll for me</button>
+      </div>
+      <div class="rollgrid">${ROLLS.map(r=>`<button class="rollbtn" data-act="roll" data-r="${r}">${r}</button>`).join("")}</div>
+      <div class="dice-note">Pick the colored die (odd/even), then tap the sum of the white dice.</div>
+      ${S.dice.step === "city" ? regionChips : ""}
+    </div>`;
+}
+
+function diceChoose(parity, roll) {
+  const D = DATA[S.map], t = S.dice;
+  if (t.step === "region") {
+    const r = D.regions[parity][roll];
+    if (t.field === "dest" && r === curRegion(P(t.id))) {
+      t.note = "Rolled " + r + ", where " + P(t.id).name + " already is. Roll again or pick a different region.";
+      render(); return;
+    }
+    if (!D.cityTables[r]) { applyDice(r === "London" ? "London" : r); return; }
+    t.note = ""; t.region = r; t.step = "city"; t.parity = "odd";
+    render();
+  } else {
+    applyDice(D.cityTables[t.region][parity][roll]);
+  }
+}
+function applyDice(city) {
+  const t = S.dice, p = P(t.id);
+  S.dice = null;
+  if (t.field === "home") { p.home = city; p.cur = city; p.dest = ""; }
+  else p.dest = city === p.cur ? "" : city;
+  render();
+  if (t.field === "dest" && city === p.cur)
+    alert(city + " is where " + p.name + " already is \u2014 roll again.");
+}
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  const act = el.dataset.act, id = +el.dataset.id || null, p = id && P(id);
+  if (act === "menu") { S.menuOpen = !S.menuOpen; render(); }
+  else if (act === "map") {
+    const k = el.dataset.k;
+    if (k === S.map) return;
+    if (S.players.some(x=>x.log.length) && !confirm("Switching maps starts fresh: cities, cash, and trip logs reset. Continue?")) return;
+    S.map = k;
+    S.players.forEach(x => { x.home = DATA[k].cities[0]; x.cur = x.home; x.dest = ""; x.cash = CFG[k].start; x.log = []; });
+    render();
+  }
+  else if (act === "add") { S.players.push(newPlayer(S.map)); render(); }
+  else if (act === "newgame") {
+    if (!confirm("New game: reset everyone's cash to " + fmt(CFG[S.map].start, S.map) + ", return them home, and clear all trips?")) return;
+    S.players.forEach(x => { x.cash = CFG[S.map].start; x.cur = x.home; x.dest = ""; x.log = []; });
+    render();
+  }
+  else if (act === "scaleup") { S.scale = Math.min(1.6, +(S.scale + 0.1).toFixed(1)); render(); }
+  else if (act === "scaledown") { S.scale = Math.max(0.7, +(S.scale - 0.1).toFixed(1)); render(); }
+  else if (act === "remove") { S.players = S.players.filter(x=>x.id!==id); render(); }
+  else if (act === "roster") { S.rosterFor = S.rosterFor === id ? null : id; render(); }
+  else if (act === "rosterclose") { S.rosterFor = null; render(); }
+  else if (act === "rosterpick") { P(id).name = el.dataset.n; S.rosterFor = null; render(); }
+  else if (act === "dice") { S.dice = { id, field: el.dataset.f, step: "region", parity: "odd", region: null }; render(); }
+  else if (act === "share") shareGame();
+  else if (act === "copylink") copyLink();
+  else if (act === "refresh") pull();
+  else if (act === "leave") {
+    if (!confirm("Stop syncing? This device keeps its own copy of the game, and the shared game stays available to everyone else.")) return;
+    SYNC.id = null; SYNC.version = 0; SYNC.last = ""; S.menuOpen = false;
+    history.replaceState(null, "", location.pathname + location.search);
+    setStatus("solo"); render();
+  }
+  else if (act === "diceclose") { S.dice = null; render(); }
+  else if (act === "diceregion") {
+    const r = el.dataset.r, t = S.dice;
+    if (t.field === "dest" && r === curRegion(P(t.id))) return;
+    if (!DATA[S.map].cityTables[r]) applyDice(r);
+    else { t.note = ""; t.region = r; t.step = "city"; t.parity = "odd"; render(); }
+  }
+  else if (act === "dicechange") { S.dice.step = "region"; S.dice.region = null; S.dice.note = ""; render(); }
+  else if (act === "dicecity") applyDice(el.dataset.c);
+  else if (act === "pick") { S.pick = { id, field: el.dataset.f, region: null, group: null }; render(); }
+  else if (act === "pickclose") { S.pick = null; render(); }
+  else if (act === "pickregion") { S.pick.region = el.dataset.r; S.pick.group = null; render(); }
+  else if (act === "pickgroup") { S.pick.group = +el.dataset.g; S.pick.region = null; render(); }
+  else if (act === "pickclear") { P(S.pick.id).dest = ""; S.pick = null; render(); }
+  else if (act === "pickcity") {
+    const pp = P(S.pick.id), f = S.pick.field, v = el.dataset.c;
+    S.pick = null;
+    if (f === "home") { pp.home = v; if (!pp.log.length) pp.cur = v; }
+    else if (f === "cur") { pp.cur = v; if (pp.dest === v) pp.dest = ""; }
+    else pp.dest = v;
+    render();
+  }
+  else if (act === "parity") { S.dice.parity = el.dataset.p; render(); }
+  else if (act === "roll") diceChoose(S.dice.parity, +el.dataset.r);
+  else if (act === "autoroll") diceChoose(Math.random() < 0.5 ? "odd" : "even", d6() + d6());
+  else if (act === "arrive") {
+    const pay = payoff(S.map, p.cur, p.dest);
+    p.log.push({ from: p.cur, to: p.dest, pay });
+    p.cash += pay; p.cur = p.dest; p.dest = "";
+    render();
+  }
+  else if (act === "undo") {
+    const last = p.log.pop();
+    p.cash -= last.pay; p.cur = last.from; p.dest = last.to;
+    render();
+  }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target.closest("[data-field]");
+  if (!el || el.dataset.field === "name") return;
+  const p = P(+el.dataset.id), f = el.dataset.field, v = el.value;
+  if (f === "home") { p.home = v; if (!p.log.length) p.cur = v; }
+  else if (f === "cur") { p.cur = v; if (p.dest === v) p.dest = ""; }
+  else if (f === "dest") p.dest = v;
+  render();
+});
+document.addEventListener("input", (e) => {
+  const el = e.target.closest('[data-field="name"]');
+  if (el) { P(+el.dataset.id).name = el.value; syncCheck(); saveLocal(); } // no rerender while typing
+});
+document.addEventListener("focusin", (e) => { if (e.target.classList.contains("pname")) e.target.select(); });
+
+// ---- Live sharing ----------------------------------------------------------
+// The game (board, players, cash, trips) is saved to the server as one JSON blob
+// with a version number. A save only succeeds if nobody else saved first
+// (compare-and-set); otherwise the server sends back the newer state and we show it.
+// We pull when the page wakes, on tap of the status button, and on a slow timer
+// while the page is visible. Screen-only things (dice dialog, picker, zoom) stay local.
+const API = "/api/games";
+const SYNC = { id: null, version: 0, last: "", busy: false, again: false, timer: null, status: "solo", note: "" };
+const shared = () => ({ map: S.map, players: S.players, nextId });
+const snap = () => JSON.stringify(shared());
+const JSON_HEADERS = { "content-type": "application/json" };
+
+function adopt(o, version) {
+  S.map = o.map; S.players = o.players; nextId = o.nextId;
+  SYNC.version = version; SYNC.last = snap();
+  if (S.dice && !P(S.dice.id)) S.dice = null;
+  if (S.pick && !P(S.pick.id)) S.pick = null;
+  if (S.rosterFor && !P(S.rosterFor)) S.rosterFor = null;
+}
+
+function setStatus(status, note) {
+  SYNC.status = status; SYNC.note = note || "";
+  paintSync();
+}
+
+function paintSync() {
+  const tag = document.getElementById("synctag"), note = document.getElementById("syncnote");
+  tag.hidden = !SYNC.id;
+  if (SYNC.id) {
+    const label = { live: "synced", saving: "saving…", offline: "offline, will retry", error: "error" }[SYNC.status] || "";
+    tag.textContent = "● " + SYNC.id + " · " + label;
+  }
+  note.style.display = SYNC.note ? "block" : "none";
+  note.textContent = SYNC.note;
+}
+
+function syncCheck() {
+  if (!SYNC.id) return;
+  if (snap() !== SYNC.last) { clearTimeout(SYNC.timer); SYNC.timer = setTimeout(push, 250); }
+}
+
+async function push() {
+  if (!SYNC.id) return;
+  if (SYNC.busy) { SYNC.again = true; return; }
+  const body = snap();
+  if (body === SYNC.last) return;
+  SYNC.busy = true; setStatus("saving");
+  try {
+    const r = await fetch(API + "/" + SYNC.id, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify({ base: SYNC.version, state: JSON.parse(body) }) });
+    const j = await r.json();
+    if (r.status === 409) {
+      adopt(j.state, j.version);
+      setStatus("live", "Someone else changed the game first, so you are now seeing their version. Re-enter your last change if it is missing.");
+      render();
+    } else if (r.ok) {
+      SYNC.version = j.version; SYNC.last = body; setStatus("live"); saveLocal();
+    } else throw new Error("save failed " + r.status);
+  } catch (e) {
+    setStatus("offline", "Your last change is not saved yet. It will retry when you tap the status button or come back to this page.");
+  } finally {
+    SYNC.busy = false;
+    if (SYNC.again) { SYNC.again = false; syncCheck(); }
+  }
+}
+
+async function pull() {
+  if (!SYNC.id || SYNC.busy) return;
+  if (snap() !== SYNC.last) { push(); return; } // our unsaved change goes first
+  SYNC.busy = true; setStatus("saving");
+  try {
+    const r = await fetch(API + "/" + SYNC.id, { cache: "no-store" });
+    if (r.status === 404) { setStatus("error", "That game code was not found."); return; }
+    if (!r.ok) throw new Error("load failed " + r.status);
+    const j = await r.json();
+    if (j.version !== SYNC.version) { adopt(j.state, j.version); render(); }
+    setStatus("live");
+  } catch (e) {
+    setStatus("offline", "Could not reach the server. Tap the status button to try again.");
+  } finally { SYNC.busy = false; }
+}
+
+async function shareGame() {
+  try {
+    const r = await fetch(API, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ state: shared() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error("create failed");
+    SYNC.id = j.id; SYNC.version = j.version; SYNC.last = snap();
+    history.replaceState(null, "", "#" + j.id);
+    S.menuOpen = false; setStatus("live"); render();
+    copyLink();
+  } catch (e) {
+    alert("Could not create a shared game. Check your connection and try again.");
+  }
+}
+
+function copyLink() {
+  const url = location.href;
+  const done = () => setStatus(SYNC.status, "Link copied. Send it to the other players.");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => prompt("Copy this link:", url));
+  else prompt("Copy this link:", url);
+}
+
+async function joinGame(id) {
+  try {
+    const r = await fetch(API + "/" + id, { cache: "no-store" });
+    if (r.status === 404) { alert("That game code was not found."); history.replaceState(null, "", location.pathname); return; }
+    if (!r.ok) throw new Error("load failed " + r.status);
+    const j = await r.json();
+    SYNC.id = id;
+    adopt(j.state, j.version);
+    setStatus("live"); render();
+  } catch (e) {
+    alert("Could not open that game. Check your connection and reload.");
+  }
+}
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
+window.addEventListener("focus", pull);
+window.addEventListener("online", pull);
+setInterval(() => { if (document.visibilityState === "visible") pull(); }, 45000);
+
+// ---- Local save --------------------------------------------------------------
+// The game is kept in this browser so a reload or a closed tab loses nothing. This never
+// touches a server. If the game was shared, we also remember its code so reopening the page
+// returns to it, and what had last been synced so unsaved changes still get sent.
+const KEY = "railbaron-live-v1";
+function saveLocal() {
+  try { localStorage.setItem(KEY, JSON.stringify({ state: shared(), id: SYNC.id, version: SYNC.version, synced: SYNC.last })); } catch (e) {}
+}
+function loadLocal() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    const st = s && s.state;
+    if (st && CFG[st.map] && Array.isArray(st.players) && st.players.length && Number.isInteger(st.nextId)) return s;
+  } catch (e) {}
+  return null;
+}
+
+const joinCode = location.hash.match(/^#([A-Za-z0-9]{6})$/);
+const saved = joinCode ? null : loadLocal();
+if (saved) {
+  S.map = saved.state.map; S.players = saved.state.players; nextId = saved.state.nextId;
+  if (/^[A-Z2-9]{6}$/.test(saved.id || "")) {
+    SYNC.id = saved.id; SYNC.version = saved.version | 0; SYNC.last = saved.synced || ""; SYNC.status = "saving";
+    history.replaceState(null, "", "#" + saved.id);
+  }
+}
+render();
+if (joinCode) joinGame(joinCode[1].toUpperCase());
+else if (SYNC.id) pull();
+</script>
+</body>
+</html>
