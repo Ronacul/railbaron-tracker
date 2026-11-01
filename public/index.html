@@ -105,6 +105,14 @@ select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
 .dice-warn { background: #A8402F; color: #F5EBD3; border-radius: 6px; padding: 7px 10px; margin: 0 0 8px; font: 600 13.5px 'Barlow Semi Condensed'; }
 .pickhint { font-size: 12.5px; color: #8A7A5A; margin: 0 0 6px; }
 #synctag { font-size: 12px; padding: 5px 9px; }
+.srow2 { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 2px 0; border-bottom: 1px dotted #D8CBA4; }
+.srow2 .sname { min-width: 0; }
+.stblwrap { overflow-x: auto; }
+.stbl { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.stbl th { font: 700 11px 'Barlow Semi Condensed'; text-transform: uppercase; letter-spacing: .5px; color: #8A7A5A; padding: 2px 6px; text-align: center; }
+.stbl td { padding: 2px 6px; text-align: center; font-family: 'IBM Plex Mono', monospace; color: #8A7A5A; }
+.stbl td:first-child { text-align: left; font-family: 'Barlow Semi Condensed', sans-serif; color: #2A241A; white-space: nowrap; }
+.stbl td.has { color: #1E4D33; font-weight: 600; background: #EADFC2; }
 .saverow { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .saverow button:disabled { opacity: .4; cursor: default; }
 .sums { display: flex; gap: 8px; margin-top: 4px; }
@@ -328,6 +336,23 @@ function renderStats(box) {
   const earned = trips.reduce((a, t) => a + t.pay, 0), best = trips.reduce((m, t) => t.pay > m.pay ? t : m, { pay: 0 });
   const regs = tally(t => R.of[t.to] || "Other"), cities = tally(t => t.to);
   const games = all && h && h.data ? h.data.filter(g => g.map === S.map).length : 0;
+  // Extras: biggest single payouts, cities that earned the most in total, wins per player, and regions by player.
+  const topTrips = trips.slice().sort((a, b) => b.pay - a.pay).slice(0, 5);
+  const earnBy = {}; trips.forEach(t => { const e = earnBy[t.to] || (earnBy[t.to] = { pay: 0, n: 0 }); e.pay += t.pay; e.n++; });
+  const topEarn = Object.entries(earnBy).sort((a, b) => b[1].pay - a[1].pay).slice(0, 5);
+  const list = (rows) => rows.map(([a, b]) => `<div class="srow2"><span class="sname">${esc(a)}</span><span class="scount">${esc(b)}</span></div>`).join("");
+  let wins = "";
+  if (all && st.who === "all" && h && h.data) {
+    const gs = h.data.filter(g => g.map === S.map), w = {};
+    gs.forEach(g => { const top = Math.max(...g.players.map(p => p.cash)); g.players.forEach(p => { const o = w[p.pid] || (w[p.pid] = { played: 0, won: 0 }); o.played++; if (p.cash === top) o.won++; }); });
+    wins = `<div class="lbl" style="margin:12px 0 4px">Wins (highest cash at save)</div>` + list(src.filter(x => w[x.pid]).map(x => [x.name, w[x.pid].won + " of " + w[x.pid].played + " · " + Math.round(100 * w[x.pid].won / w[x.pid].played) + "%"]));
+  }
+  let grid = "";
+  if (st.who === "all" && src.filter(x => x.trips.length).length > 1) {
+    const cols = src.filter(x => x.trips.length);
+    const cnt = (x, r) => x.trips.filter(t => (R.of[t.to] || "Other") === r).length;
+    grid = `<div class="lbl" style="margin:12px 0 4px">Regions by player</div><div class="stblwrap"><table class="stbl"><tr><th></th>${cols.map(x => `<th>${esc(x.name)}</th>`).join("")}</tr>${regs.map(([r]) => `<tr><td>${esc(r)}</td>${cols.map(x => { const c = cnt(x, r); return `<td class="${c ? "has" : ""}">${c || "·"}</td>`; }).join("")}</tr>`).join("")}</table></div>`;
+  }
   let body;
   if (all && (!h || h.loading)) body = '<div class="dice-note">Loading saved games…</div>';
   else if (all && h.error) body = `<div class="dice-warn">${esc(h.error)}</div>`;
@@ -341,7 +366,10 @@ function renderStats(box) {
     </div>
     <div class="lbl" style="margin:10px 0 4px">Destination regions</div>${bars(regs, regs[0][1])}
     <div class="lbl" style="margin:12px 0 4px">Most visited cities</div>${bars(cities.slice(0, 10), cities[0][1])}
-    ${cities.length > 10 ? `<div class="dice-note">Top 10 of ${cities.length} cities reached.</div>` : ""}`;
+    ${cities.length > 10 ? `<div class="dice-note">Top 10 of ${cities.length} cities reached.</div>` : ""}
+    <div class="lbl" style="margin:12px 0 4px">Biggest payouts</div>${list(topTrips.map(t => [t.from + " → " + t.to, fmt(t.pay, S.map)]))}
+    <div class="lbl" style="margin:12px 0 4px">Best-earning destinations (total)</div>${list(topEarn.map(([c, e]) => [c, fmt(e.pay, S.map) + " · " + e.n + "×"]))}
+    ${wins}${grid}`;
   const saveMsg = { saving: "Saving…", saved: "Saved. Saving again later replaces this game's record.", error: "Could not save. Check your connection and try again." }[st.save] || "Keeps this game's trips so they count in All games.";
   const saveRow = all ? "" : `<div class="saverow"><button class="addbtn" data-act="statssave"${!S.players.some(p => p.log.length) || st.save === "saving" ? " disabled" : ""}>Save game to history</button><span class="dice-note" style="margin:0">${saveMsg}</span></div>`;
   box.style.display = "flex";
