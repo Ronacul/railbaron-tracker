@@ -207,7 +207,7 @@ function render() {
       </div>
       ${S.players.length<6 ? '<button class="addbtn" data-act="add">+ Add player</button>' : ""}
       ${SYNC.id
-        ? '<button class="addbtn" data-act="copylink">Copy game link</button><button class="resetbtn" data-act="refresh">Refresh</button><button class="resetbtn" data-act="leave">Leave shared game</button>'
+        ? '<button class="addbtn" data-act="copylink">Copy game link</button><button class="resetbtn" data-act="refresh">Check now</button><button class="resetbtn" data-act="leave">Leave shared game</button>'
         : '<button class="addbtn" data-act="share">Share live game</button>'}
       <button class="resetbtn" data-act="newgame">New game</button>
       <div class="fontctl" title="Text size">
@@ -443,7 +443,8 @@ document.addEventListener("focusin", (e) => { if (e.target.classList.contains("p
 // We pull when the page wakes, on tap of the status button, and on a slow timer
 // while the page is visible. Screen-only things (dice dialog, picker, zoom) stay local.
 const API = "/api/games";
-const SYNC = { id: null, version: 0, last: "", busy: false, again: false, timer: null, status: "solo", note: "" };
+const POLL_MS = 45000;
+const SYNC = { id: null, version: 0, last: "", busy: false, again: false, timer: null, status: "solo", note: "", next: 0 };
 const shared = () => ({ map: S.map, players: S.players, nextId });
 const snap = () => JSON.stringify(shared());
 const JSON_HEADERS = { "content-type": "application/json" };
@@ -465,8 +466,13 @@ function paintSync() {
   const tag = document.getElementById("synctag"), note = document.getElementById("syncnote");
   tag.hidden = !SYNC.id;
   if (SYNC.id) {
-    const label = { live: "synced", saving: "saving…", offline: "offline, will retry", error: "error" }[SYNC.status] || "";
+    let label = { live: "synced", saving: "checking…", offline: "offline, tap to retry", error: "error" }[SYNC.status] || "";
+    if (SYNC.status === "live" && SYNC.next) {
+      const s = Math.max(0, Math.ceil((SYNC.next - Date.now()) / 1000));
+      label += " · next check " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    }
     tag.textContent = "● " + SYNC.id + " · " + label;
+    tag.title = "Tap to check for changes now";
   }
   note.style.display = SYNC.note ? "block" : "none";
   note.textContent = SYNC.note;
@@ -491,7 +497,7 @@ async function push() {
       setStatus("live", "Someone else changed the game first, so you are now seeing their version. Re-enter your last change if it is missing.");
       render();
     } else if (r.ok) {
-      SYNC.version = j.version; SYNC.last = body; setStatus("live"); saveLocal();
+      SYNC.version = j.version; SYNC.last = body; SYNC.next = Date.now() + POLL_MS; setStatus("live"); saveLocal();
     } else throw new Error("save failed " + r.status);
   } catch (e) {
     setStatus("offline", "Your last change is not saved yet. It will retry when you tap the status button or come back to this page.");
@@ -511,8 +517,9 @@ async function pull() {
     if (!r.ok) throw new Error("load failed " + r.status);
     const j = await r.json();
     if (j.version !== SYNC.version) { adopt(j.state, j.version); render(); }
-    setStatus("live");
+    SYNC.next = Date.now() + POLL_MS; setStatus("live");
   } catch (e) {
+    SYNC.next = Date.now() + POLL_MS;
     setStatus("offline", "Could not reach the server. Tap the status button to try again.");
   } finally { SYNC.busy = false; }
 }
@@ -522,7 +529,7 @@ async function shareGame() {
     const r = await fetch(API, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ state: shared() }) });
     const j = await r.json();
     if (!r.ok) throw new Error("create failed");
-    SYNC.id = j.id; SYNC.version = j.version; SYNC.last = snap();
+    SYNC.id = j.id; SYNC.version = j.version; SYNC.last = snap(); SYNC.next = Date.now() + POLL_MS;
     history.replaceState(null, "", "#" + j.id);
     S.menuOpen = false; setStatus("live"); render();
     copyLink();
@@ -546,7 +553,7 @@ async function joinGame(id) {
     const j = await r.json();
     SYNC.id = id;
     adopt(j.state, j.version);
-    setStatus("live"); render();
+    SYNC.next = Date.now() + POLL_MS; setStatus("live"); render();
   } catch (e) {
     alert("Could not open that game. Check your connection and reload.");
   }
@@ -555,7 +562,12 @@ async function joinGame(id) {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
 window.addEventListener("focus", pull);
 window.addEventListener("online", pull);
-setInterval(() => { if (document.visibilityState === "visible") pull(); }, 45000);
+// One-second tick: repaints the countdown on the status button and runs the check when it reaches zero.
+// Does nothing unless the game is shared and the page is visible.
+setInterval(() => {
+  if (!SYNC.id || document.visibilityState !== "visible") return;
+  if (SYNC.next && Date.now() >= SYNC.next) pull(); else paintSync();
+}, 1000);
 
 // ---- Local save --------------------------------------------------------------
 // The game is kept in this browser so a reload or a closed tab loses nothing. This never
