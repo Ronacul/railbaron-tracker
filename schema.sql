@@ -6,3 +6,12 @@ CREATE TABLE IF NOT EXISTS games (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS games_updated ON games (updated_at);
+
+-- Finished games saved from the Stats page ("Save game to history"), one row per game, keyed by the game's gid.
+CREATE TABLE IF NOT EXISTS results (
+  id TEXT PRIMARY KEY,
+  map TEXT NOT NULL,
+  players TEXT NOT NULL,
+  at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS results_at ON results (at);

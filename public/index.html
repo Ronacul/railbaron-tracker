@@ -105,6 +105,8 @@ select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
 .dice-warn { background: #A8402F; color: #F5EBD3; border-radius: 6px; padding: 7px 10px; margin: 0 0 8px; font: 600 13.5px 'Barlow Semi Condensed'; }
 .pickhint { font-size: 12.5px; color: #8A7A5A; margin: 0 0 6px; }
 #synctag { font-size: 12px; padding: 5px 9px; }
+.saverow { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.saverow button:disabled { opacity: .4; cursor: default; }
 .sums { display: flex; gap: 8px; margin-top: 4px; }
 .sums div { flex: 1; background: #FDF7E7; border: 1px solid #C7B588; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
 .sums b { font: 600 16px 'IBM Plex Mono', monospace; color: #1E4D33; }
@@ -137,7 +139,9 @@ select:focus { outline: 2px solid #C29A4C; outline-offset: 0; }
 <script src="data.js"></script>
 <script>
 const CFG = { US: { mult: 500, start: 20000, sym: "$" }, UK: { mult: 1000, start: 10000, sym: "\u00A3" } };
-const ROSTER = ["Lucanor", "Dennis", "Ian", "Mark", "Martin", "Alistair"];
+const ROSTER = ["Lucanor", "Dennis", "Ian", "Mark", "Alistair", "Martin"];
+// Regulars have fixed permanent ids (r-lucanor, r-dennis, ...) so their stats combine across every game.
+const rosterPid = (name) => "r-" + name.toLowerCase();
 const ROLLS = [2,3,4,5,6,7,8,9,10,11,12];
 
 const MAT = {};
@@ -156,11 +160,14 @@ const d6 = () => 1 + Math.floor(Math.random()*6);
 const esc = (t) => String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 
 let nextId = 1;
-const newPlayer = (map) => ({ id: nextId, name: "Player " + (nextId++), home: DATA[map].cities[0],
+// pid is the player's permanent identity (used to group saved stats); name is only a label and can be overwritten.
+// gid identifies one game for saving results; it changes whenever the game restarts.
+const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+const newPlayer = (map) => ({ id: nextId, pid: "p-" + rid(), name: "Player " + (nextId++), home: DATA[map].cities[0],
   cur: DATA[map].cities[0], dest: "", cash: CFG[map].start, log: [] });
 
 const S = {
-  map: "UK",
+  map: "UK", gid: "g-" + rid(),
   players: [0,0,0,0].map(()=>newPlayer("UK")),
   scale: 1, menuOpen: false, rosterFor: null,
   dice: null, // {id, field, step:"region"|"city", region, parity}
@@ -297,17 +304,37 @@ function renderPicker(box) {
     </div>`;
 }
 
-// Stats for this game: where trips have ended, overall or for one player. Counts arrived trips only.
+// ---- Stats and history ---------------------------------------------------------
+// "This game" reads the live players. "All games" reads saved results from the server and groups them by each
+// player's permanent id (pid), so renaming someone never splits their record; the newest name wins as the label.
+function histPeople() {
+  const h = S.stats.hist;
+  if (!h || !h.data) return [];
+  const by = {};
+  h.data.filter(g => g.map === S.map).sort((a, b) => a.at - b.at).forEach(g => g.players.forEach(p => {
+    const o = by[p.pid] || (by[p.pid] = { pid: p.pid, trips: [] });
+    o.name = p.name; o.trips = o.trips.concat(p.trips);
+  }));
+  return Object.values(by).sort((a, b) => b.trips.length - a.trips.length);
+}
+
 function renderStats(box) {
-  const who = S.stats.who, R = REG[S.map];
-  const ps = who === "all" ? S.players : S.players.filter(p => p.id === who);
-  const trips = ps.flatMap(p => p.log), n = trips.length;
+  const st = S.stats, R = REG[S.map], all = st.tab === "all", h = st.hist;
+  const src = all ? histPeople() : S.players.map(p => ({ pid: p.pid, name: p.name, trips: p.log }));
+  const pick = st.who === "all" ? src : src.filter(x => x.pid === st.who);
+  const trips = pick.flatMap(x => x.trips), n = trips.length;
   const tally = (key) => { const m = {}; trips.forEach(t => { const k = key(t); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])); };
   const bars = (rows, max) => rows.map(([k, c]) => `<div class="srow"><span class="sname">${esc(k)}</span><span class="sbar"><i style="width:${Math.round(100 * c / max)}%"></i></span><span class="scount">${c} · ${Math.round(100 * c / n)}%</span></div>`).join("");
   const earned = trips.reduce((a, t) => a + t.pay, 0), best = trips.reduce((m, t) => t.pay > m.pay ? t : m, { pay: 0 });
   const regs = tally(t => R.of[t.to] || "Other"), cities = tally(t => t.to);
-  const body = !n ? '<div class="dice-note">No finished trips yet. Stats fill in as players tap Arrive.</div>' : `
+  const games = all && h && h.data ? h.data.filter(g => g.map === S.map).length : 0;
+  let body;
+  if (all && (!h || h.loading)) body = '<div class="dice-note">Loading saved games…</div>';
+  else if (all && h.error) body = `<div class="dice-warn">${esc(h.error)}</div>`;
+  else if (!n) body = `<div class="dice-note">${all ? "No saved games on this board yet. Use Save to history on the This game tab." : "No finished trips yet. Stats fill in as players tap Arrive."}</div>`;
+  else body = `
     <div class="sums">
+      ${all ? `<div><b>${games}</b><span>games</span></div>` : ""}
       <div><b>${n}</b><span>trips</span></div>
       <div><b>${fmt(Math.round(earned / n), S.map)}</b><span>avg payout</span></div>
       <div><b>${fmt(best.pay, S.map)}</b><span>best${best.to ? " · " + esc(best.to) : ""}</span></div>
@@ -315,13 +342,40 @@ function renderStats(box) {
     <div class="lbl" style="margin:10px 0 4px">Destination regions</div>${bars(regs, regs[0][1])}
     <div class="lbl" style="margin:12px 0 4px">Most visited cities</div>${bars(cities.slice(0, 10), cities[0][1])}
     ${cities.length > 10 ? `<div class="dice-note">Top 10 of ${cities.length} cities reached.</div>` : ""}`;
+  const saveMsg = { saving: "Saving…", saved: "Saved. Saving again later replaces this game's record.", error: "Could not save. Check your connection and try again." }[st.save] || "Keeps this game's trips so they count in All games.";
+  const saveRow = all ? "" : `<div class="saverow"><button class="addbtn" data-act="statssave"${!S.players.some(p => p.log.length) || st.save === "saving" ? " disabled" : ""}>Save game to history</button><span class="dice-note" style="margin:0">${saveMsg}</span></div>`;
   box.style.display = "flex";
   box.innerHTML = `
     <div class="pickbox" style="overflow-y:auto">
-      <div class="dice-head"><span class="dice-kicker">Game stats · ${S.map === "US" ? "US" : "UK"} board</span><button class="xbtn" data-act="statsclose">✕</button></div>
-      <div class="chips"><button class="chip${who === "all" ? " on" : ""}" data-act="statswho" data-w="all">Everyone</button>${S.players.map(p => `<button class="chip${who === p.id ? " on" : ""}" data-act="statswho" data-w="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+      <div class="dice-head"><span class="dice-kicker">Stats · ${S.map === "US" ? "US" : "UK"} board</span><button class="xbtn" data-act="statsclose">✕</button></div>
+      <div class="chips" style="margin-bottom:0"><button class="chip${all ? "" : " on"}" data-act="statstab" data-t="game">This game</button><button class="chip${all ? " on" : ""}" data-act="statstab" data-t="all">All games</button></div>
+      <div class="chips"><button class="chip${st.who === "all" ? " on" : ""}" data-act="statswho" data-w="all">Everyone</button>${src.map(x => `<button class="chip${st.who === x.pid ? " on" : ""}" data-act="statswho" data-w="${esc(x.pid)}">${esc(x.name)}</button>`).join("")}</div>
       ${body}
+      ${saveRow}
     </div>`;
+}
+
+async function loadHistory() {
+  S.stats.hist = { loading: true }; render();
+  try {
+    const r = await fetch("/api/results", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    if (S.stats) { S.stats.hist = { data: j.results }; render(); }
+  } catch (e) {
+    if (S.stats) { S.stats.hist = { error: "Could not load saved games. If this is the first use, the results table may not be set up yet." }; render(); }
+  }
+}
+
+async function saveResult() {
+  S.stats.save = "saving"; render();
+  const body = { id: S.gid, map: S.map, players: S.players.map(p => ({ pid: p.pid, name: p.name, cash: p.cash,
+    trips: p.log.map(t => ({ from: t.from, to: t.to, pay: t.pay })) })) };
+  try {
+    const r = await fetch("/api/results", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(r.status);
+    if (S.stats) { S.stats.save = "saved"; S.stats.hist = null; render(); }
+  } catch (e) { if (S.stats) { S.stats.save = "error"; render(); } }
 }
 
 function renderDice() {
@@ -396,22 +450,26 @@ document.addEventListener("click", (e) => {
     const k = el.dataset.k;
     if (k === S.map) return;
     if (S.players.some(x=>x.log.length) && !confirm("Switching maps starts fresh: cities, cash, and trip logs reset. Continue?")) return;
-    S.map = k;
+    S.map = k; S.gid = "g-" + rid();
     S.players.forEach(x => { x.home = DATA[k].cities[0]; x.cur = x.home; x.dest = ""; x.cash = CFG[k].start; x.log = []; });
     render();
   }
   else if (act === "add") { S.players.push(newPlayer(S.map)); render(); }
   else if (act === "newgame") {
     if (!confirm("New game: reset everyone's cash to " + fmt(CFG[S.map].start, S.map) + ", return them home, and clear all trips?")) return;
-    S.players.forEach(x => { x.cash = CFG[S.map].start; x.cur = x.home; x.dest = ""; x.log = []; });
+    S.gid = "g-" + rid(); S.players.forEach(x => { x.cash = CFG[S.map].start; x.cur = x.home; x.dest = ""; x.log = []; });
     render();
   }
   else if (act === "scaleup") { S.scale = Math.min(1.6, +(S.scale + 0.1).toFixed(1)); render(); }
   else if (act === "scaledown") { S.scale = Math.max(0.7, +(S.scale - 0.1).toFixed(1)); render(); }
-  else if (act === "remove") { S.players = S.players.filter(x=>x.id!==id); render(); }
+  else if (act === "remove") {
+    const n = p.log.length;
+    if (!confirm("Remove " + p.name + " from this game?" + (n ? " Their " + n + " finished trip" + (n === 1 ? "" : "s") + " and " + fmt(p.cash, S.map) + " will be lost from this game" + (SYNC.id ? " for everyone sharing it" : "") + ", and won't count in saved stats unless you save to history first." : ""))) return;
+    S.players = S.players.filter(x=>x.id!==id); render();
+  }
   else if (act === "roster") { S.rosterFor = S.rosterFor === id ? null : id; render(); }
   else if (act === "rosterclose") { S.rosterFor = null; render(); }
-  else if (act === "rosterpick") { P(id).name = el.dataset.n; S.rosterFor = null; render(); }
+  else if (act === "rosterpick") { P(id).name = el.dataset.n; P(id).pid = rosterPid(el.dataset.n); S.rosterFor = null; render(); }
   else if (act === "dice") { S.dice = { id, field: el.dataset.f, step: "region", parity: "odd", region: null }; render(); }
   else if (act === "share") shareGame();
   else if (act === "copylink") copyLink();
@@ -422,9 +480,11 @@ document.addEventListener("click", (e) => {
     history.replaceState(null, "", location.pathname + location.search);
     setStatus("solo"); render();
   }
-  else if (act === "stats") { S.stats = { who: "all" }; S.menuOpen = false; render(); }
+  else if (act === "stats") { S.stats = { who: "all", tab: "game", hist: null, save: null }; S.menuOpen = false; render(); }
   else if (act === "statsclose") { S.stats = null; render(); }
-  else if (act === "statswho") { S.stats.who = el.dataset.w === "all" ? "all" : +el.dataset.w; render(); }
+  else if (act === "statswho") { S.stats.who = el.dataset.w; render(); }
+  else if (act === "statstab") { S.stats.tab = el.dataset.t; S.stats.who = "all"; if (el.dataset.t === "all") loadHistory(); else render(); }
+  else if (act === "statssave") saveResult();
   else if (act === "diceclose") { S.dice = null; render(); }
   else if (act === "diceregion") {
     const r = el.dataset.r, t = S.dice;
@@ -473,7 +533,12 @@ document.addEventListener("change", (e) => {
 });
 document.addEventListener("input", (e) => {
   const el = e.target.closest('[data-field="name"]');
-  if (el) { P(+el.dataset.id).name = el.value; syncCheck(); saveLocal(); } // no rerender while typing
+  if (el) {
+    const p = P(+el.dataset.id), hit = ROSTER.find(n => n.toLowerCase() === el.value.trim().toLowerCase());
+    p.name = el.value;
+    if (hit) p.pid = rosterPid(hit); // typing a regular's name links to their permanent id
+    syncCheck(); saveLocal();
+  } // no rerender while typing
 });
 document.addEventListener("focusin", (e) => { if (e.target.classList.contains("pname")) e.target.select(); });
 
@@ -486,12 +551,13 @@ document.addEventListener("focusin", (e) => { if (e.target.classList.contains("p
 const API = "/api/games";
 const POLL_MS = 45000;
 const SYNC = { id: null, version: 0, last: "", busy: false, again: false, timer: null, status: "solo", note: "", next: 0 };
-const shared = () => ({ map: S.map, players: S.players, nextId });
+const ensurePids = () => S.players.forEach(p => { if (!p.pid) p.pid = "p-" + rid(); });
+const shared = () => ({ map: S.map, players: S.players, nextId, gid: S.gid });
 const snap = () => JSON.stringify(shared());
 const JSON_HEADERS = { "content-type": "application/json" };
 
 function adopt(o, version) {
-  S.map = o.map; S.players = o.players; nextId = o.nextId;
+  S.map = o.map; S.players = o.players; nextId = o.nextId; if (o.gid) S.gid = o.gid; ensurePids();
   SYNC.version = version; SYNC.last = snap();
   if (S.dice && !P(S.dice.id)) S.dice = null;
   if (S.pick && !P(S.pick.id)) S.pick = null;
@@ -630,7 +696,7 @@ function loadLocal() {
 const joinCode = location.hash.match(/^#([A-Za-z0-9]{6})$/);
 const saved = joinCode ? null : loadLocal();
 if (saved) {
-  S.map = saved.state.map; S.players = saved.state.players; nextId = saved.state.nextId;
+  S.map = saved.state.map; S.players = saved.state.players; nextId = saved.state.nextId; S.gid = saved.state.gid || S.gid; ensurePids();
   if (/^[A-Z2-9]{6}$/.test(saved.id || "")) {
     SYNC.id = saved.id; SYNC.version = saved.version | 0; SYNC.last = saved.synced || ""; SYNC.status = "saving";
     history.replaceState(null, "", "#" + saved.id);
