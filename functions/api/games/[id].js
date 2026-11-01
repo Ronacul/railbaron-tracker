@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Ronacul. All rights reserved. Provided as is, without warranty of any kind. Unofficial fan-made tracker, not affiliated with the owners of Rail Baron or its trademarks.
 // GET /api/games/:id            -> { state, version }
 // PUT /api/games/:id { base, state }
 //   200 { version }              saved (base matched the stored version)

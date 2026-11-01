@@ -47,3 +47,11 @@ Use the Cloudflare account ronaculs@gmail.com (with the s).
 
 The page logic was tested against a mocked server. The Functions and D1 queries
 have not run against real Cloudflare yet, so the first real test game is the check.
+
+## Copyright and disclaimer
+
+Copyright (c) 2026 Ronacul. All rights reserved. No licence to copy, modify or redistribute the code or content is granted unless a separate licence says so.
+
+This is an unofficial fan-made tracker for the board game Rail Baron. It is not affiliated with or endorsed by the owners of Rail Baron or its trademarks, which belong to their respective owners. The payoff and destination tables were entered for personal use from the game's printed charts; the owner of this repository should confirm whether they may be published before promoting the site widely.
+
+The software is provided "as is", without warranty of any kind, express or implied. The owner is not liable for lost games or any other loss from its use. Shared games store the names, cash and trips entered on a server, and are deleted after about 90 days without activity. Have a lawyer review this notice before the site is promoted or carries ads.
